@@ -4,6 +4,7 @@ export const routes = [
   "/logs",
   "/tasks",
   "/pipeline",
+  "/salesforce-import",
   "/referrals",
   "/settings",
   "/new-log"

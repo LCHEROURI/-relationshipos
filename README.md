@@ -26,6 +26,7 @@ npm run build
 - `/logs`
 - `/tasks`
 - `/pipeline`
+- `/salesforce-import`
 - `/referrals`
 - `/settings`
 - `/new-log`
@@ -33,3 +34,14 @@ npm run build
 ## Notes
 
 The current implementation uses realistic local demo data and local UI state so the core workflow is demo-ready without requiring Supabase credentials. The schema and AI parser contract from the source prompt are preserved in `supabase/schema.sql` and `src/domain.js` for a later backend connection.
+
+## Salesforce Pipeline Import
+
+The app includes a Salesforce import review workflow for pipeline opportunities. It demonstrates the recommended production shape:
+
+- OAuth-style connection entry point in Settings
+- Account and opportunity external IDs
+- Field mapping from Salesforce Account and Opportunity data
+- New/update/possible duplicate detection
+- Review-before-save import behavior
+- Schema references for `integration_connections` and `import_runs`

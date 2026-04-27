@@ -15,6 +15,7 @@ create table profiles (
 create table clients (
   id uuid primary key,
   assigned_rm uuid references profiles(id),
+  salesforce_account_id text unique,
   business_name text not null,
   dba_name text,
   industry text,
@@ -61,6 +62,9 @@ create table opportunities (
   id uuid primary key,
   client_id uuid references clients(id),
   interaction_log_id uuid references interaction_logs(id),
+  salesforce_opportunity_id text unique,
+  import_source text,
+  last_imported_at timestamptz,
   product_type text check (product_type in ('business_checking','business_savings','line_of_credit','term_loan','cre_loan','sba_loan','equipment_financing','treasury_management','merchant_services','business_credit_card','payroll','international','other')),
   stage text check (stage in ('prospect','discovery','proposal','negotiation','won','lost')),
   estimated_value numeric,
@@ -113,5 +117,31 @@ create table ai_runs (
   prompt_version text,
   raw_output jsonb,
   parsing_status text,
+  created_at timestamptz default now()
+);
+
+create table integration_connections (
+  id uuid primary key,
+  profile_id uuid references profiles(id),
+  provider text check (provider in ('salesforce')),
+  external_user_id text,
+  instance_url text,
+  encrypted_access_token text,
+  encrypted_refresh_token text,
+  token_expires_at timestamptz,
+  connected_at timestamptz default now(),
+  last_sync_at timestamptz
+);
+
+create table import_runs (
+  id uuid primary key,
+  profile_id uuid references profiles(id),
+  provider text check (provider in ('salesforce')),
+  import_type text check (import_type in ('pipeline')),
+  status text check (status in ('review','completed','failed')),
+  records_new integer default 0,
+  records_updated integer default 0,
+  records_duplicates integer default 0,
+  raw_summary jsonb,
   created_at timestamptz default now()
 );

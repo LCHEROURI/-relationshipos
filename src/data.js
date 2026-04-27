@@ -11,6 +11,7 @@ export const clients = [
     id: "hartwell",
     assigned_rm: "alex-rivera",
     business_name: "Hartwell Manufacturing",
+    salesforce_account_id: "001HTW000001",
     industry: "Industrial Manufacturing",
     annual_revenue_band: "25m_100m",
     employee_count_band: "251_1000",
@@ -26,6 +27,7 @@ export const clients = [
     id: "beacon",
     assigned_rm: "alex-rivera",
     business_name: "Beacon Street Hospitality Group",
+    salesforce_account_id: "001BCN000002",
     industry: "Hospitality",
     annual_revenue_band: "25m_100m",
     employee_count_band: "51_250",
@@ -41,6 +43,7 @@ export const clients = [
     id: "greenfield",
     assigned_rm: "alex-rivera",
     business_name: "Greenfield Logistics",
+    salesforce_account_id: "001GRN000003",
     industry: "Transportation",
     annual_revenue_band: "5m_25m",
     employee_count_band: "51_250",
@@ -56,6 +59,7 @@ export const clients = [
     id: "northgate",
     assigned_rm: "alex-rivera",
     business_name: "Northgate Medical Partners",
+    salesforce_account_id: "001NTG000004",
     industry: "Healthcare",
     annual_revenue_band: "5m_25m",
     employee_count_band: "11_50",
@@ -71,6 +75,7 @@ export const clients = [
     id: "cascade",
     assigned_rm: "alex-rivera",
     business_name: "Cascade Digital Agency",
+    salesforce_account_id: "001CSD000005",
     industry: "Professional Services",
     annual_revenue_band: "1m_5m",
     employee_count_band: "11_50",
@@ -86,6 +91,7 @@ export const clients = [
     id: "summit",
     assigned_rm: "alex-rivera",
     business_name: "Summit Property Holdings",
+    salesforce_account_id: "001SMT000006",
     industry: "Commercial Real Estate",
     annual_revenue_band: "25m_100m",
     employee_count_band: "1_10",
@@ -116,10 +122,10 @@ export const tasks = [
 ];
 
 export const opportunities = [
-  { id: "opp-1", client_id: "beacon", interaction_log_id: "log-2", product_type: "cre_loan", stage: "proposal", estimated_value: 5200000, probability: 55, expected_close_date: "2026-05-30", next_step: "Client feedback on term sheet", notes: "Second boutique hotel acquisition." },
+  { id: "opp-1", client_id: "beacon", interaction_log_id: "log-2", salesforce_opportunity_id: "006BCN000901", import_source: "salesforce", last_imported_at: "2026-04-23", product_type: "cre_loan", stage: "proposal", estimated_value: 5200000, probability: 55, expected_close_date: "2026-05-30", next_step: "Client feedback on term sheet", notes: "Second boutique hotel acquisition." },
   { id: "opp-2", client_id: "hartwell", interaction_log_id: "log-1", product_type: "treasury_management", stage: "discovery", estimated_value: 275000, probability: 45, expected_close_date: "2026-05-20", next_step: "Treasury specialist demo", notes: "Interest in payables automation." },
   { id: "opp-3", client_id: "northgate", interaction_log_id: "log-4", product_type: "term_loan", stage: "prospect", estimated_value: 900000, probability: 25, expected_close_date: "2026-06-15", next_step: "Receive financial package", notes: "Practice expansion financing." },
-  { id: "opp-4", client_id: "cascade", interaction_log_id: "log-3", product_type: "merchant_services", stage: "negotiation", estimated_value: 85000, probability: 70, expected_close_date: "2026-05-08", next_step: "Compare pricing with competitor", notes: "Uses competitor merchant processor today." },
+  { id: "opp-4", client_id: "cascade", interaction_log_id: "log-3", salesforce_opportunity_id: "006CSD000904", import_source: "salesforce", last_imported_at: "2026-04-22", product_type: "merchant_services", stage: "negotiation", estimated_value: 85000, probability: 70, expected_close_date: "2026-05-08", next_step: "Compare pricing with competitor", notes: "Uses competitor merchant processor today." },
   { id: "opp-5", client_id: "greenfield", interaction_log_id: "log-5", product_type: "line_of_credit", stage: "discovery", estimated_value: 650000, probability: 30, expected_close_date: "2026-06-01", next_step: "Credit review after receivables update", notes: "Working capital pressure." }
 ];
 
@@ -140,4 +146,63 @@ export const product_mentions = [
   { id: "pm-1", client_id: "hartwell", interaction_log_id: "log-1", product_name: "Treasury Management", mention_context: "client_asked", notes: "Asked about positive pay and payables automation." },
   { id: "pm-2", client_id: "cascade", interaction_log_id: "log-3", product_name: "Merchant Services", mention_context: "competitor_mentioned", notes: "Currently using Stripe and local bank operating account." },
   { id: "pm-3", client_id: "beacon", interaction_log_id: "log-2", product_name: "CRE Loan", mention_context: "rm_mentioned", notes: "Acquisition financing options discussed." }
+];
+
+export const salesforcePipelineData = [
+  {
+    account_id: "001BCN000002",
+    account_name: "Beacon Street Hospitality Group",
+    opportunity_id: "006BCN000901",
+    opportunity_name: "Beacon Hotel Acquisition CRE Loan",
+    stage_name: "Proposal/Price Quote",
+    amount: 5450000,
+    probability: 60,
+    close_date: "2026-05-30",
+    next_step: "Confirm revised DSCR scenario with Julian Chen",
+    description: "Salesforce amount increased after sponsor added furniture and fixture budget.",
+    product_type: "cre_loan",
+    owner_name: "Dean Cherouri"
+  },
+  {
+    account_id: "001CSD000005",
+    account_name: "Cascade Digital Agency",
+    opportunity_id: "006CSD000904",
+    opportunity_name: "Cascade Merchant Services Conversion",
+    stage_name: "Negotiation/Review",
+    amount: 85000,
+    probability: 75,
+    close_date: "2026-05-08",
+    next_step: "Send final interchange-plus comparison",
+    description: "Existing RelationshipOS deal should be updated with stronger probability.",
+    product_type: "merchant_services",
+    owner_name: "Dean Cherouri"
+  },
+  {
+    account_id: "001KNG000007",
+    account_name: "King Street Dental Group",
+    opportunity_id: "006KNG000907",
+    opportunity_name: "Dental Practice Equipment Financing",
+    stage_name: "Discovery",
+    amount: 420000,
+    probability: 35,
+    close_date: "2026-06-20",
+    next_step: "Collect equipment quote and practice financials",
+    description: "New Salesforce account and equipment financing opportunity.",
+    product_type: "equipment_financing",
+    owner_name: "Dean Cherouri"
+  },
+  {
+    account_id: "001HTW000001",
+    account_name: "Hartwell Manufacturing",
+    opportunity_id: "006HTW000908",
+    opportunity_name: "Hartwell Operating Line Expansion",
+    stage_name: "Discovery",
+    amount: 750000,
+    probability: 40,
+    close_date: "2026-06-10",
+    next_step: "Review borrowing base and seasonal inventory plan",
+    description: "Potential line expansion from Salesforce pipeline.",
+    product_type: "line_of_credit",
+    owner_name: "Dean Cherouri"
+  }
 ];

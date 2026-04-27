@@ -1,4 +1,4 @@
-import { clients, interaction_logs, opportunities, product_mentions, referrals, risk_flags, rm, tasks } from "./data.js";
+import { clients, interaction_logs, opportunities, product_mentions, referrals, risk_flags, rm, salesforcePipelineData, tasks } from "./data.js";
 import { productTypes, referralUnits, routes } from "./domain.js";
 import "./styles.css";
 
@@ -10,6 +10,11 @@ const state = {
   pipelineFilter: "all",
   riskFilter: "all",
   referralFilter: "all",
+  salesforce: {
+    connected: false,
+    selectedIds: salesforcePipelineData.map((record) => record.opportunity_id),
+    lastImport: null
+  },
   draft: {
     client_id: clients[0].id,
     interaction_type: "in_person_meeting",
@@ -85,7 +90,7 @@ function pageShell(content) {
       <div class="brand"><span class="brand-mark">R</span><div><strong>RelationshipOS</strong><small>Citizens Business Banking</small></div></div>
       <nav>${navItems.map((item) => `<button class="nav-item ${state.route.startsWith(item.route) ? "active" : ""}" data-route="${item.route}">${icon(item.icon)}<span>${item.label}</span>${item.route === "/tasks" ? `<em>${state.data.tasks.filter((task) => task.status !== "done").length}</em>` : ""}</button>`).join("")}</nav>
       <button class="quick-add" data-route="/new-log">${icon("plus")} New interaction</button>
-      <div class="user-card"><span>AR</span><div><strong>${rm.full_name}</strong><small>${titleize(rm.role)} - ${rm.market}</small></div></div>
+      <div class="user-card"><span>DC</span><div><strong>${rm.full_name}</strong><small>${titleize(rm.role)} - ${rm.market}</small></div></div>
     </aside>
     <main class="workspace">${content}</main>
     <nav class="mobile-nav">
@@ -258,13 +263,155 @@ function pipelinePage() {
   const stages = ["prospect", "discovery", "proposal", "negotiation", "won", "lost"];
   const filtered = state.data.opportunities.filter((opp) => state.pipelineFilter === "all" || opp.product_type === state.pipelineFilter);
   return pageShell(`
-    ${header("Pipeline", `${money(filtered.reduce((sum, opp) => sum + opp.estimated_value, 0))} active book with ${money(forecastValue())} weighted forecast.`)}
-    <div class="toolbar">${select("pipeline-filter", state.pipelineFilter, [["all", "All products"], ...Object.keys(productTypes).map((key) => [key, productTypes[key]])])}</div>
+    ${header("Pipeline", `${money(filtered.reduce((sum, opp) => sum + opp.estimated_value, 0))} active book with ${money(forecastValue())} weighted forecast.`, `<button class="primary" data-route="/salesforce-import">Import Salesforce</button>`)}
+    <div class="toolbar">${select("pipeline-filter", state.pipelineFilter, [["all", "All products"], ...Object.keys(productTypes).map((key) => [key, productTypes[key]])])}<span>${state.data.opportunities.filter((opp) => opp.import_source === "salesforce").length} Salesforce-linked deals</span></div>
     <section class="kanban">${stages.map((stage) => {
       const items = filtered.filter((opp) => opp.stage === stage);
       return `<div class="stage"><div class="stage-title"><h2>${titleize(stage)}</h2><span>${money(items.reduce((sum, opp) => sum + opp.estimated_value, 0))}</span></div>${items.map(oppCard).join("") || empty("No deals")}</div>`;
     }).join("")}</section>
   `);
+}
+
+function salesforceImportPage() {
+  const rows = salesforceRows();
+  const selectedRows = rows.filter((row) => state.salesforce.selectedIds.includes(row.record.opportunity_id));
+  const counts = importCounts(selectedRows);
+  return pageShell(`
+    ${header("Salesforce Pipeline Import", "Review Salesforce opportunities before adding them to RelationshipOS.", `<button class="primary" data-connect-salesforce>${state.salesforce.connected ? "Connected" : "Connect Salesforce"}</button>`)}
+    <section class="integration-grid">
+      <div class="panel">
+        <div class="panel-title"><h2>Connection</h2>${badge(state.salesforce.connected ? "OAuth connected" : "Demo OAuth", state.salesforce.connected ? "low" : "warning")}</div>
+        <div class="connection-card">
+          <strong>Salesforce CRM</strong>
+          <span>${state.salesforce.connected ? "Connected as Dean Cherouri. Tokens would be stored server-side in production." : "Use the connect action to simulate secure OAuth before import."}</span>
+        </div>
+        <div class="import-summary">
+          <article><small>Selected</small><strong>${selectedRows.length}</strong></article>
+          <article><small>New</small><strong>${counts.new}</strong></article>
+          <article><small>Updates</small><strong>${counts.update}</strong></article>
+          <article><small>Possible duplicates</small><strong>${counts.duplicate}</strong></article>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><h2>Field mapping</h2>${badge("Locked", "blue")}</div>
+        ${mappingRow("Account", "clients.business_name")}
+        ${mappingRow("Account ID", "clients.salesforce_account_id")}
+        ${mappingRow("Opportunity ID", "opportunities.salesforce_opportunity_id")}
+        ${mappingRow("Amount", "opportunities.estimated_value")}
+        ${mappingRow("Close Date", "opportunities.expected_close_date")}
+        ${mappingRow("Next Step", "opportunities.next_step")}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-title"><h2>Review import</h2><div><button data-toggle-salesforce>Select all</button><button class="primary" data-save-salesforce>Save selected</button></div></div>
+      <div class="import-table">
+        <div class="import-row import-head"><span></span><span>Status</span><span>Client</span><span>Opportunity</span><span>Stage</span><span>Value</span><span>Close</span></div>
+        ${rows.map(salesforceRow).join("")}
+      </div>
+    </section>
+    ${state.salesforce.lastImport ? `<section class="panel success-panel"><strong>Last import saved</strong><span>${state.salesforce.lastImport}</span></section>` : ""}
+  `);
+}
+
+function mappingRow(source, target) {
+  return `<div class="mapping-row"><span>${source}</span><strong>${target}</strong></div>`;
+}
+
+function salesforceRows() {
+  return salesforcePipelineData.map((record) => {
+    const clientMatch = state.data.clients.find((client) => client.salesforce_account_id === record.account_id || client.business_name.toLowerCase() === record.account_name.toLowerCase());
+    const opportunityMatch = state.data.opportunities.find((opp) => opp.salesforce_opportunity_id === record.opportunity_id);
+    const possibleDuplicate = !opportunityMatch && state.data.opportunities.some((opp) => opp.client_id === clientMatch?.id && opp.product_type === record.product_type && !["won", "lost"].includes(opp.stage));
+    return {
+      record,
+      clientMatch,
+      opportunityMatch,
+      status: opportunityMatch ? "update" : possibleDuplicate ? "duplicate" : "new"
+    };
+  });
+}
+
+function importCounts(rows) {
+  return rows.reduce((counts, row) => {
+    counts[row.status] += 1;
+    return counts;
+  }, { new: 0, update: 0, duplicate: 0 });
+}
+
+function salesforceRow(row) {
+  const selected = state.salesforce.selectedIds.includes(row.record.opportunity_id);
+  return `<label class="import-row">
+    <span><input type="checkbox" data-salesforce-select="${row.record.opportunity_id}" ${selected ? "checked" : ""} /></span>
+    <span>${badge(row.status === "update" ? "Update" : row.status === "duplicate" ? "Review" : "New", row.status === "duplicate" ? "warning" : row.status === "update" ? "blue" : "low")}</span>
+    <span><strong>${row.record.account_name}</strong><small>${row.clientMatch ? "Matched client" : "New client"}</small></span>
+    <span><strong>${row.record.opportunity_name}</strong><small>${row.record.next_step}</small></span>
+    <span>${titleize(mapSalesforceStage(row.record.stage_name))}</span>
+    <span>${money(row.record.amount)}</span>
+    <span>${row.record.close_date}</span>
+  </label>`;
+}
+
+function mapSalesforceStage(stageName) {
+  const normalized = stageName.toLowerCase();
+  if (normalized.includes("proposal") || normalized.includes("quote")) return "proposal";
+  if (normalized.includes("negotiation") || normalized.includes("review")) return "negotiation";
+  if (normalized.includes("closed won")) return "won";
+  if (normalized.includes("closed lost")) return "lost";
+  if (normalized.includes("prospect")) return "prospect";
+  return "discovery";
+}
+
+function saveSalesforceImport() {
+  if (!state.salesforce.connected) {
+    window.alert("Connect Salesforce before saving imported pipeline records.");
+    return;
+  }
+  const selectedRows = salesforceRows().filter((row) => state.salesforce.selectedIds.includes(row.record.opportunity_id));
+  const counts = importCounts(selectedRows);
+  selectedRows.forEach((row, index) => {
+    let client = row.clientMatch;
+    if (!client) {
+      client = {
+        id: `sf-client-${row.record.account_id}`,
+        assigned_rm: rm.id,
+        salesforce_account_id: row.record.account_id,
+        business_name: row.record.account_name,
+        industry: "Imported from Salesforce",
+        annual_revenue_band: "5m_25m",
+        employee_count_band: "11_50",
+        relationship_stage: "prospect",
+        client_tier: "standard",
+        primary_contact_name: null,
+        primary_contact_title: null,
+        city: "Conshohocken",
+        state: "PA",
+        last_interaction: "2026-04-26"
+      };
+      state.data.clients.push(client);
+    }
+    const opportunity = {
+      id: row.opportunityMatch?.id || `sf-opp-${row.record.opportunity_id}`,
+      client_id: client.id,
+      interaction_log_id: row.opportunityMatch?.interaction_log_id || null,
+      salesforce_opportunity_id: row.record.opportunity_id,
+      import_source: "salesforce",
+      last_imported_at: "2026-04-27",
+      product_type: row.record.product_type,
+      stage: mapSalesforceStage(row.record.stage_name),
+      estimated_value: row.record.amount,
+      probability: row.record.probability,
+      expected_close_date: row.record.close_date,
+      next_step: row.record.next_step,
+      notes: `${row.record.description} Imported from Salesforce opportunity ${row.record.opportunity_id}.`
+    };
+    if (row.opportunityMatch) {
+      Object.assign(row.opportunityMatch, opportunity);
+    } else {
+      state.data.opportunities.unshift(opportunity);
+    }
+  });
+  state.salesforce.lastImport = `${selectedRows.length} records saved: ${counts.new} new, ${counts.update} updated, ${counts.duplicate} reviewed for duplicates.`;
+  setRoute("/pipeline");
 }
 
 function oppCard(opp) {
@@ -354,6 +501,7 @@ function settingsPage() {
     ${header("Settings", "Team management and future enterprise licensing hooks.")}
     <section class="dashboard-grid">
       <div class="panel"><h2>Profile</h2><div class="settings-row"><span>Name</span><strong>${rm.full_name}</strong></div><div class="settings-row"><span>Role</span><strong>${titleize(rm.role)}</strong></div><div class="settings-row"><span>Market</span><strong>${rm.market}</strong></div></div>
+      <div class="panel"><div class="panel-title"><h2>Salesforce CRM</h2>${badge(state.salesforce.connected ? "Connected" : "Available", state.salesforce.connected ? "low" : "blue")}</div><p>Import pipeline opportunities from Salesforce with field mapping, external IDs, duplicate checks, and a review step before saving.</p><button class="primary" data-route="/salesforce-import">Open import review</button></div>
       <div class="panel"><h2>Subscription plan</h2><p>Prepared for future solo RM and full-team licensing. Billing is intentionally not implemented.</p>${badge("Enterprise-ready structure", "blue")}</div>
       <div class="panel"><h2>Security posture</h2><p>Supabase auth, row-level security rules, and AI run audit records are documented for backend connection.</p>${badge("RLS planned", "warning")}</div>
     </section>
@@ -373,6 +521,7 @@ function routeContent() {
   if (state.route.startsWith("/clients")) return clientsPage();
   if (state.route === "/tasks") return tasksPage();
   if (state.route === "/pipeline") return pipelinePage();
+  if (state.route === "/salesforce-import") return salesforceImportPage();
   if (state.route === "/referrals") return referralsPage();
   if (state.route === "/logs") return logsPage();
   if (state.route === "/settings") return settingsPage();
@@ -437,6 +586,17 @@ function bindEvents() {
     const referral = state.data.referrals.find((ref) => ref.id === button.dataset.advanceReferral);
     const order = ["pending", "sent", "accepted", "converted"];
     referral.status = order[Math.min(order.indexOf(referral.status) + 1, order.length - 1)];
+    render();
+  }));
+  document.querySelector("[data-connect-salesforce]")?.addEventListener("click", () => { state.salesforce.connected = true; render(); });
+  document.querySelector("[data-toggle-salesforce]")?.addEventListener("click", () => {
+    state.salesforce.selectedIds = state.salesforce.selectedIds.length === salesforcePipelineData.length ? [] : salesforcePipelineData.map((record) => record.opportunity_id);
+    render();
+  });
+  document.querySelector("[data-save-salesforce]")?.addEventListener("click", saveSalesforceImport);
+  document.querySelectorAll("[data-salesforce-select]").forEach((checkbox) => checkbox.addEventListener("change", (event) => {
+    const id = event.target.dataset.salesforceSelect;
+    state.salesforce.selectedIds = event.target.checked ? [...state.salesforce.selectedIds, id] : state.salesforce.selectedIds.filter((selectedId) => selectedId !== id);
     render();
   }));
   document.querySelector("[data-approve]")?.addEventListener("click", approveParsed);
