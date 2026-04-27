@@ -1,0 +1,16 @@
+{
+  "name": "relationshipos",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "RelationshipOS portfolio intelligence app for business banking relationship managers.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {}
+}
