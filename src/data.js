@@ -1,9 +1,9 @@
 export const rm = {
   id: "alex-rivera",
-  full_name: "Alex Rivera",
+  full_name: "Dean Cherouri",
   role: "relationship_manager",
-  market: "New England",
-  email: "alex.rivera@citizens.example"
+  market: "Conshohocken, PA",
+  email: "dean.cherouri@citizens.example"
 };
 
 export const clients = [

@@ -382,7 +382,7 @@ function routeContent() {
 
 function authPage(route) {
   const signup = route === "/signup";
-  return `<main class="auth-screen"><section class="auth-card"><div class="brand"><span class="brand-mark">R</span><div><strong>RelationshipOS</strong><small>Citizens Business Banking</small></div></div><h1>${signup ? "Create your profile" : "Welcome back"}</h1><p>Secure access for relationship managers, team leads, support associates, and admins.</p>${signup ? '<label>Full name<input value="Alex Rivera" /></label>' : ""}<label>Email<input value="${rm.email}" /></label><label>Password<input type="password" value="relationshipos" /></label><button class="primary" data-route="/dashboard">${signup ? "Create account" : "Sign in"}</button><button data-route="${signup ? "/login" : "/signup"}">${signup ? "Use existing account" : "Create account"}</button></section></main>`;
+  return `<main class="auth-screen"><section class="auth-card"><div class="brand"><span class="brand-mark">R</span><div><strong>RelationshipOS</strong><small>Citizens Business Banking</small></div></div><h1>${signup ? "Create your profile" : "Welcome back"}</h1><p>Secure access for relationship managers, team leads, support associates, and admins.</p>${signup ? '<label>Full name<input value="Dean Cherouri" /></label>' : ""}<label>Email<input value="${rm.email}" /></label><label>Password<input type="password" value="relationshipos" /></label><button class="primary" data-route="/dashboard">${signup ? "Create account" : "Sign in"}</button><button data-route="${signup ? "/login" : "/signup"}">${signup ? "Use existing account" : "Create account"}</button></section></main>`;
 }
 
 function parseDraft() {
