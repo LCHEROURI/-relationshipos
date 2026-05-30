@@ -479,11 +479,11 @@ function parsedReview() {
   return `<section class="panel review-panel" id="parsed-review">
     <div class="panel-title"><h2>Parsed Review</h2>${parsed.risk_flags.some((risk) => risk.regulatory_flag) ? badge("Regulatory review", "warning") : badge("Ready", "blue")}</div>
     ${reviewSection("Summary", `<textarea id="parsed-summary">${parsed.summary}</textarea>`)}
-    ${reviewSection(`Follow-Up Tasks (${parsed.tasks.length})`, parsed.tasks.map((task, index) => reviewItem("task", index, task.title, `${titleize(task.priority)} - Due ${task.due_date || "not set"}`)).join(""))}
-    ${reviewSection(`Pipeline Opportunities (${parsed.opportunities.length})`, parsed.opportunities.map((opp, index) => reviewItem("opportunity", index, productTypes[opp.product_type], `${money(opp.estimated_value)} - ${titleize(opp.stage)}`)).join(""))}
-    ${reviewSection(`Risk Flags (${parsed.risk_flags.length})`, parsed.risk_flags.map((risk, index) => reviewItem("risk", index, titleize(risk.flag_type), `${titleize(risk.severity)} ${risk.regulatory_flag ? "- Regulatory" : ""}`)).join(""))}
-    ${reviewSection(`Referrals (${parsed.referrals.length})`, parsed.referrals.map((ref, index) => reviewItem("referral", index, referralUnits[ref.referred_to], ref.referral_reason)).join(""))}
-    ${reviewSection(`Product Mentions (${parsed.product_mentions.length})`, parsed.product_mentions.map((mention, index) => reviewItem("mention", index, mention.product_name, titleize(mention.mention_context))).join(""))}
+    ${reviewSection(`Follow-Up Tasks (${parsed.tasks.length})`, parsed.tasks.map((task, index) => reviewItem("task", index, ...reviewItemDisplay("task", task))).join(""))}
+    ${reviewSection(`Pipeline Opportunities (${parsed.opportunities.length})`, parsed.opportunities.map((opp, index) => reviewItem("opportunity", index, ...reviewItemDisplay("opportunity", opp))).join(""))}
+    ${reviewSection(`Risk Flags (${parsed.risk_flags.length})`, parsed.risk_flags.map((risk, index) => reviewItem("risk", index, ...reviewItemDisplay("risk", risk))).join(""))}
+    ${reviewSection(`Referrals (${parsed.referrals.length})`, parsed.referrals.map((ref, index) => reviewItem("referral", index, ...reviewItemDisplay("referral", ref))).join(""))}
+    ${reviewSection(`Product Mentions (${parsed.product_mentions.length})`, parsed.product_mentions.map((mention, index) => reviewItem("mention", index, ...reviewItemDisplay("mention", mention))).join(""))}
     <footer class="approve-bar"><button data-add-review-item>Add item</button><button class="primary" data-approve>Approve and Save</button></footer>
   </section>`;
 }
@@ -493,7 +493,99 @@ function reviewSection(title, body) {
 }
 
 function reviewItem(type, index, title, detail) {
-  return `<article class="review-item"><div><strong contenteditable="true">${title}</strong><span contenteditable="true">${detail}</span></div><button data-delete-review="${type}:${index}">Delete</button></article>`;
+  return `<article class="review-item" data-review-item="${type}:${index}"><div><strong contenteditable="true" data-review-title>${title}</strong><span contenteditable="true" data-review-detail>${detail}</span></div><button data-delete-review="${type}:${index}">Delete</button></article>`;
+}
+
+function reviewItemDisplay(type, item) {
+  const displays = {
+    task: [item.title, `${titleize(item.priority)} - Due ${item.due_date || "not set"}`],
+    opportunity: [productTypes[item.product_type] || titleize(item.product_type), `${money(item.estimated_value)} - ${titleize(item.stage)}`],
+    risk: [titleize(item.flag_type), `${titleize(item.severity)} ${item.regulatory_flag ? "- Regulatory" : ""}`],
+    referral: [referralUnits[item.referred_to] || titleize(item.referred_to), item.referral_reason],
+    mention: [item.product_name, titleize(item.mention_context)]
+  };
+  const [title, detail] = displays[type] || ["", ""];
+  return [item.review_title ?? title, item.review_detail ?? detail];
+}
+
+function syncParsedReviewFromDom() {
+  if (!state.parsed) return;
+
+  const summary = document.getElementById("parsed-summary");
+  if (summary) state.parsed.summary = summary.value;
+
+  document.querySelectorAll("[data-review-item]").forEach((row) => {
+    const [type, index] = row.dataset.reviewItem.split(":");
+    const item = parsedItems(type)[Number(index)];
+    if (!item) return;
+
+    const title = cleanEditableText(row.querySelector("[data-review-title]")?.textContent);
+    const detail = cleanEditableText(row.querySelector("[data-review-detail]")?.textContent);
+    const [renderedTitle, renderedDetail] = reviewItemDisplay(type, item);
+
+    if (title !== renderedTitle) applyReviewTitleEdit(type, item, title);
+    if (detail !== renderedDetail) applyReviewDetailEdit(type, item, detail);
+  });
+}
+
+function parsedItems(type) {
+  const keys = { task: "tasks", opportunity: "opportunities", risk: "risk_flags", referral: "referrals", mention: "product_mentions" };
+  return state.parsed?.[keys[type]] || [];
+}
+
+function cleanEditableText(value = "") {
+  return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function applyReviewTitleEdit(type, item, title) {
+  item.review_title = title;
+  if (type === "task") item.title = title;
+  if (type === "opportunity") item.product_type = lookupKey(productTypes, title) || item.product_type;
+  if (type === "risk") item.flag_type = slugify(title) || item.flag_type;
+  if (type === "referral") item.referred_to = lookupKey(referralUnits, title) || "other";
+  if (type === "mention") item.product_name = title;
+}
+
+function applyReviewDetailEdit(type, item, detail) {
+  item.review_detail = detail;
+  if (type === "task") {
+    item.description = detail;
+    const priority = detail.match(/\b(critical|high|medium|low)\b/i)?.[1];
+    const dueDate = detail.match(/\bdue\s+(\d{4}-\d{2}-\d{2}|not set)\b/i)?.[1];
+    if (priority) item.priority = priority.toLowerCase();
+    if (dueDate) item.due_date = dueDate.toLowerCase() === "not set" ? null : dueDate;
+  }
+  if (type === "opportunity") {
+    item.next_step = detail;
+    item.estimated_value = parseMoney(detail) ?? item.estimated_value;
+    item.stage = parseStage(detail) || item.stage;
+  }
+  if (type === "risk") {
+    item.description = detail;
+    item.severity = detail.match(/\b(critical|high|medium|low)\b/i)?.[1]?.toLowerCase() || item.severity;
+    item.regulatory_flag = /\bregulatory\b/i.test(detail) || item.regulatory_flag;
+  }
+  if (type === "referral") item.referral_reason = detail;
+  if (type === "mention") item.notes = detail;
+}
+
+function lookupKey(map, label) {
+  const normalized = label.toLowerCase();
+  return Object.keys(map).find((key) => map[key].toLowerCase() === normalized);
+}
+
+function slugify(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function parseMoney(value) {
+  const match = value.match(/\$?([\d,]+)(?:\.\d+)?/);
+  return match ? Number(match[1].replaceAll(",", "")) : null;
+}
+
+function parseStage(value) {
+  const stages = ["prospect", "discovery", "proposal", "negotiation", "won", "lost"];
+  return stages.find((stage) => value.toLowerCase().includes(stage));
 }
 
 function settingsPage() {
@@ -554,6 +646,7 @@ function parseDraft() {
 }
 
 function approveParsed() {
+  syncParsedReviewFromDom();
   const logId = `log-${Date.now()}`;
   const clientId = state.draft.client_id;
   state.data.interaction_logs.unshift({
@@ -600,11 +693,15 @@ function bindEvents() {
     render();
   }));
   document.querySelector("[data-approve]")?.addEventListener("click", approveParsed);
-  document.querySelector("[data-add-review-item]")?.addEventListener("click", () => { state.parsed.tasks.push({ title: "New follow-up", description: "", priority: "medium", assigned_to: null, due_date: null }); render(); });
+  document.querySelector("[data-add-review-item]")?.addEventListener("click", () => {
+    syncParsedReviewFromDom();
+    state.parsed.tasks.push({ title: "New follow-up", description: "", priority: "medium", assigned_to: null, due_date: null });
+    render();
+  });
   document.querySelectorAll("[data-delete-review]").forEach((button) => button.addEventListener("click", () => {
+    syncParsedReviewFromDom();
     const [type, index] = button.dataset.deleteReview.split(":");
-    const keys = { task: "tasks", opportunity: "opportunities", risk: "risk_flags", referral: "referrals", mention: "product_mentions" };
-    state.parsed[keys[type]].splice(Number(index), 1);
+    parsedItems(type).splice(Number(index), 1);
     render();
   }));
   document.getElementById("client-filter")?.addEventListener("change", (event) => { state.clientFilter = event.target.value; render(); });
